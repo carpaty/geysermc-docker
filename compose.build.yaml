@@ -1,0 +1,7 @@
+services:
+  geyser:
+    build:
+      context: .
+      args:
+        GEYSER_DOWNLOAD_URL: ${GEYSER_DOWNLOAD_URL:-https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/standalone}
+        GEYSER_SHA256: ${GEYSER_SHA256:-}

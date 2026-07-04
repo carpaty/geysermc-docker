@@ -1,0 +1,105 @@
+services:
+  mc:
+    image: ${MINECRAFT_IMAGE:-itzg/minecraft-server:latest}
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+    ports:
+      - "${VANILLA_SERVER_PORT:-25565}:${VANILLA_SERVER_PORT:-25565}/tcp"
+    environment:
+      EULA: "TRUE"
+      TYPE: ${MINECRAFT_TYPE:-VANILLA}
+      VERSION: ${MINECRAFT_VERSION:-LATEST}
+      SERVER_PORT: ${VANILLA_SERVER_PORT:-25599}
+      MEMORY: ${MINECRAFT_MEMORY:-2G}
+      ONLINE_MODE: "${MINECRAFT_ONLINE_MODE:-TRUE}"
+      UID: ${MINECRAFT_UID:-1000}
+      GID: ${MINECRAFT_GID:-1000}
+    volumes:
+      - ./mc-data:/data
+    stop_grace_period: 1m
+
+  geyser:
+    image: ${GEYSER_IMAGE:-aspel/geysermc:latest}
+    restart: unless-stopped
+    depends_on:
+      - viaproxy
+    environment:
+      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=75.0 -XX:+UseG1GC}
+      GEYSER_SYNC: ${GEYSER_SYNC:-false}
+      GEYSER_DOWNLOAD_URL: ${GEYSER_DOWNLOAD_URL:-https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/standalone}
+      # Optional integrity check. Pin this when using a versioned download URL.
+      GEYSER_SHA256: ${GEYSER_SHA256:-}
+      GEYSER_UDP_ADDRESS: ${GEYSER_UDP_ADDRESS:-0.0.0.0}
+      GEYSER_UDP_PORT: ${GEYSER_UDP_PORT:-19132}
+      GEYSER_BROADCAST_PORT: ${GEYSER_BROADCAST_PORT:-19132}
+
+      # Advanced Geyser system properties. Uncomment only when needed.
+      # GEYSER_PRINT_SECURE_CHAT_INFORMATION: ${GEYSER_PRINT_SECURE_CHAT_INFORMATION:-true}
+      # GEYSER_SHOW_SCOREBOARD_LOGS: ${GEYSER_SHOW_SCOREBOARD_LOGS:-true}
+      # GEYSER_SHOW_RESOURCE_PACK_LENGTH_WARNING: ${GEYSER_SHOW_RESOURCE_PACK_LENGTH_WARNING:-true}
+      # GEYSER_PRINT_PINGS_IN_DEBUG_MODE: ${GEYSER_PRINT_PINGS_IN_DEBUG_MODE:-true}
+      # GEYSER_USE_DIRECT_ADAPTERS: ${GEYSER_USE_DIRECT_ADAPTERS:-true}
+      # GEYSER_BEDROCK_NETWORK_THREADS: ${GEYSER_BEDROCK_NETWORK_THREADS:-8}
+      # GEYSER_ADD_TEAM_SUGGESTIONS: ${GEYSER_ADD_TEAM_SUGGESTIONS:-true}
+      # GEYSER_NO_PLAYER_LIST_PS: ${GEYSER_NO_PLAYER_LIST_PS:-false}
+      # GEYSER_RAK_PACKET_LIMIT: ${GEYSER_RAK_PACKET_LIMIT:-120}
+      # GEYSER_RAK_GLOBAL_PACKET_LIMIT: ${GEYSER_RAK_GLOBAL_PACKET_LIMIT:-100000}
+      # GEYSER_RAK_RATE_LIMITING_DISABLED: ${GEYSER_RAK_RATE_LIMITING_DISABLED:-false}
+      # GEYSER_RAK_SEND_COOKIE: ${GEYSER_RAK_SEND_COOKIE:-true}
+    command:
+      - --nogui
+      - --java.address=${GEYSER_JAVA_SERVER_ADDRESS:-viaproxy}
+      - --java.port=${GEYSER_JAVA_SERVER_PORT:-25568}
+      - --java.auth-type=${JAVA_AUTH_TYPE:-online}
+      # Any config.yml key can be overridden using dot notation:
+      # - --command-suggestions=false
+      # - --config=/data/custom-config.yml
+    ports:
+      - "${GEYSER_PUBLISHED_PORT:-19132}:${GEYSER_UDP_PORT:-19132}/udp"
+    volumes:
+      - ./geyser-data:/data
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    read_only: true
+    tmpfs:
+      # Netty extracts native transport libraries here and must execute them.
+      - /tmp:size=64m,mode=1777,exec
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: ${MEMORY_LIMIT:-1G}
+    stop_grace_period: 30s
+
+  viaproxy:
+    image: ${VIAPROXY_IMAGE:-ghcr.io/viaversion/viaproxy:latest}
+    restart: unless-stopped
+    user: "1000:1000"
+    depends_on:
+      - mc
+    environment:
+      JAVA_TOOL_OPTIONS: ${VIAPROXY_JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=75.0 -XX:+UseG1GC}
+    entrypoint:
+      - java
+      - -jar
+      - /app/ViaProxy.jar
+      - cli
+    command:
+      - --bind-address=0.0.0.0:${VIAPROXY_PORT:-25568}
+      - --target-address=${VANILLA_SERVER_ADDRESS:-mc}:${VANILLA_SERVER_PORT:-25599}
+      - --target-version=${VANILLA_PROTOCOL_VERSION:-Auto Detect (1.7+ servers)}
+      - --proxy-online-mode=${VIAPROXY_PROXY_ONLINE_MODE:-false}
+      - --auth-method=${VIAPROXY_AUTH_METHOD:-NONE}
+    expose:
+      - "${VIAPROXY_PORT:-25568}"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777,exec
+      - /app/run:size=128m,uid=1000,gid=1000,mode=0755
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: ${VIAPROXY_MEMORY_LIMIT:-1G}
+    stop_grace_period: 30s

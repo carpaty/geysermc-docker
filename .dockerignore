@@ -1,0 +1,11 @@
+.git
+.github
+.gitignore
+.env
+README.md
+LICENSE
+compose*.yaml
+compose*.yml
+Dockerfile*
+geyser-data/
+mc-data/
